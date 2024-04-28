@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
 from functools import partial
+from databases import Database
+
 import strawberry
 from strawberry.types import Info
 from fastapi import FastAPI
 from strawberry.fastapi import BaseContext, GraphQLRouter
-from databases import Database
 
 from settings import Settings
+from services.book_service import BookService
+from persistent.book_repository import BookRepository
 
 
 class Context(BaseContext):
@@ -17,7 +20,6 @@ class Context(BaseContext):
         db: Database,
     ) -> None:
         self.db = db
-
 
 
 @strawberry.type
@@ -42,11 +44,17 @@ class Query:
         search: str | None = None,
         limit: int | None = None,
     ) -> list[Book]:
-        # TODO:
-        # Do NOT use dataloaders
-        await info.context.db.execute("select 1")
-        return []
-
+        repository = BookRepository(db=info.context.db)
+        result = await BookService().fetch_books(
+            repository=repository,
+            author_ids=author_ids,
+            search=search,
+            limit=limit
+        )
+        return [
+                Book(title=book['title'], author=Author(name=book['name']))
+            for book in result
+            ]
 
 
 CONN_TEMPLATE = "postgresql+asyncpg://{user}:{password}@{host}:{port}/{name}"
